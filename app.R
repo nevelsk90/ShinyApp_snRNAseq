@@ -1,0 +1,589 @@
+library(Matrix)
+library(DT)
+library(shiny)
+library(Seurat)
+library(dplyr)
+library(shinyWidgets)
+library(ggplot2)
+library(scater)
+
+# load the data
+load("snRNAseq_kif3a_shiny.Rdata")
+
+sce_Podo <- subset( sce.combined , idents= 10)
+
+allTab <- Reduce( rbind, lapply( seq(kidney_kif3a_DE_noDub), function(ii) {
+  kidney_kif3a_DE_noDub[[ii]]$cluster <- levels(  sce.combined$seurat_clusters )[ii]
+  return(kidney_kif3a_DE_noDub[[ii]])
+}) )
+
+# assign cell type
+
+ui <- fixedPage(
+  fixedRow(
+    titlePanel(paste("analysis of snRNA-seq data from wild-type and Kif3a mutant kidney"))
+  ),
+  hr(),
+  hr(),
+  
+  ### UMAPS
+  fixedRow(
+    titlePanel("Dataset and Cluster Metadata Inspection"),
+    p(paste(
+      "A look at the whole dataset.",
+      "The dimensional reduction is UMAP (cells",
+      "projected into 2D space), where proximity indicates transcriptional similarity.\n",
+      "With the option on top you can add a metadata overlay",
+      "to the cell projection. "
+    )),
+ 
+    h1()
+  ),
+  
+  hr(),
+
+  fixedRow(
+    column(4,uiOutput("umapMDcol")),
+    # column(2,uiOutput("integratedVIZ")),
+    column(2,uiOutput("umapMDlog"))
+  ),
+  
+  fixedRow(
+    column(10,plotOutput("umap",height="700px"))
+  ),
+  
+  fixedRow(
+    column(10,align="right",downloadButton("umapSave",paste("Save image")))
+    ) ,
+  hr(),
+  hr(),
+  
+  ### scatter plots
+  fixedRow(
+    p(paste("plot continuous meta data features"
+    )),
+    h1()),
+  
+  fixedRow(
+    column(2,uiOutput("mdScatterX")),
+    column(2,uiOutput("mdScatterY")), 
+    column(2,uiOutput("scatterLog"))
+  ),
+  fixedRow(
+    column(12,plotOutput("mdScatter",height="500px"))
+  ),
+  fixedRow(
+    column(12,align="right",downloadButton("mdScatterSave",paste("Save as pdf"))),
+  ) ,
+  
+  hr(),
+  hr(),
+  
+  ### violin plots of gene expression
+  fixedRow(
+    titlePanel("Violin plots of Gene Expression"),h1()
+  ) ,
+  
+  hr(),
+  
+  fixedRow(
+    column(3,searchInput(
+      inputId = "GeneList", 
+      label = "Enter list of genes for violin plot(comma-separated):", 
+      value = c("Wt1,Epha6"), 
+      btnSearch = icon("search"), 
+      btnReset = icon("remove"), 
+      width = "100%"
+    ))
+    ,
+    column(2,uiOutput("ListType")),
+    column(2,uiOutput("showcells"))
+    ),
+  
+  fixedRow(
+    column(4,uiOutput("AllorOne1")),
+    column(2,uiOutput("WhichCluster1"))
+  ),
+  
+  fixedRow(
+    column(12,plotOutput("vplot",height="600px"))
+  ),
+  
+  fixedRow(
+    column(12,align="right",downloadButton("vSave",paste("Save image"))))
+  ,
+  
+  hr(),
+  hr(),
+  
+  ### gene expression lvls in individual cells
+  fixedRow(
+    titlePanel("Expression of Genes of Interest across individual cells"),h1()
+  ) ,
+  hr(),
+  
+  fixedRow(
+    column(3,searchInput(
+      inputId = "GeneName", 
+      label = "Enter gene name :", 
+      value = "Wt1", 
+      btnSearch = icon("search"), 
+      btnReset = icon("remove"), 
+      width = "100%"
+    ))
+  ) ,
+  
+  fixedRow(
+    column(4,uiOutput("AllorOne2")),
+    column(2,uiOutput("WhichCluster2"))
+  ),
+  
+  fixedRow(
+    column(6,plotOutput("goiplot1",height="580px")),
+    column(6,plotOutput("goiplot2",height="580px"))
+  ),
+  
+  
+  fixedRow(
+    column(12,align="right",downloadButton("geneSave",paste("Save image")))
+    ) ,
+  hr(),
+  hr(),
+  
+  ### cluster markers UI
+  fixedRow(
+    titlePanel("Cluster Markers")
+  ) ,
+  hr(),
+  
+  fixedRow(
+    p("Expression heatmap of cluster markers, top 10 markers (max) per cluster are shown")
+  ), 
+  
+  fixedRow(
+    column(12,plotOutput("clustPlot",height="1400px"))
+  ) ,
+  fixedRow(
+    column(12,align="right",downloadButton("hmapSave",paste("Save image")))
+  ) ,
+  
+  h1(),
+  
+
+  fixedRow(
+    column(4,uiOutput("AllorOne")),
+    column(2,uiOutput("WhichCluster"))
+  ),
+  
+  basicPage(
+    DT::dataTableOutput("mytable")
+  ) ,
+  hr(),
+  hr(),
+  
+ 
+  
+  ### UI for DE  analysis
+  fixedRow(
+    titlePanel("Differential Expression between various groups of samples")
+    # p("The last column shows what groups were tested against each other")
+  ) ,
+  hr(),
+  
+  fixedRow(
+    column(4,uiOutput("AllorOneDE")),
+    column(2,uiOutput("WhichCtype"))
+  ),
+  
+  basicPage(
+    DT::dataTableOutput("DEtable")
+  ) ,
+  hr(),
+  hr(),
+  
+
+ #  ### UI for make plots for podocytes only
+ #  fixedRow( 
+ #    titlePanel("Expression of Genes of Interest in Podocytes") , h1()
+ #  ) ,
+ #  hr(),
+ #  
+ #  
+ #  fixedRow(
+ #    column(3,searchInput(
+ #      inputId = "GenePodo1", 
+ #      label = "Enter gene name :", 
+ #      value = "Wt1", 
+ #      btnSearch = icon("search"), 
+ #      btnReset = icon("remove"), 
+ #      width = "100%"
+ #    ),align="center"),
+ #    column(2,uiOutput("groupVar")),
+ #    column(2,uiOutput("showcells2"))
+ #  ) ,
+ #  
+ # fixedRow(
+ #    column(4,plotOutput("Podoplot0",height="500px")),
+ #    column(4,plotOutput("Podoplot1",height="500px")),
+ #    column(4,plotOutput("Podoplot2",height="500px"))
+ #  ),
+ # 
+ #  fixedRow(
+ #    column(12,align="right",downloadButton("PodogeneSave",paste("Save image")))
+ #  )  ,
+ # 
+ # hr() ,
+ hr()
+  
+ 
+
+)
+
+####=========================SERVER=====================####
+
+server <- function(input, output) {
+  
+  ### UMAPs
+  {
+    output$umapMDcol <- renderUI({
+      selectInput("umapMDcol",label="Metadata:",width="60%",choices=colnames( sce.combined@meta.data),
+                  selected=colnames( sce.combined@meta.data)[8])
+    })
+    
+    output$umapMDlog <- renderUI({
+      selectInput("umapMDlog",label="Type of reduction:",width="60%",choices=list("UMAP"="umap","PCA"="pca"),
+                  selected="UMAP")
+    })
+    
+    output$umap <- renderPlot({
+      
+      req( input$umapMDcol )
+      
+      if ( is.character( sce.combined@meta.data[ ,input$umapMDcol]) | is.factor( sce.combined@meta.data[ ,input$umapMDcol]) ) {
+        print( DimPlot( sce.combined, pt.size=1, reduction=input$umapMDlog, group.by= input$umapMDcol , label=T ,
+                        shuffle = T ))
+      } else {
+        print(FeaturePlot( sce.combined, pt.size=1, label=F, reduction=input$umapMDlog, 
+                           features= input$umapMDcol,  cols=c("lightgrey", "darkblue")))}
+      
+    })
+    
+    output$umapSave <- downloadHandler(filename=paste0("umap",input$umapMDcol,".pdf"),
+                                       content=function(file){
+                                         require(input$umapMDcol)
+                                         # DefaultAssay( sce.combined) <- input$integratedVIZ  
+                                         
+                                         grDevices::cairo_pdf(file,height=10,width=10,fallback_resolution=1200)
+                                         
+                                         
+                                         if ( is.character( sce.combined@meta.data[ ,input$umapMDcol]) | is.factor( sce.combined@meta.data[ ,input$umapMDcol]) ) {
+                                           print( DimPlot( sce.combined, pt.size=1, label=F, reduction=input$umapMDlog, 
+                                                           group.by= input$umapMDcol  , shuffle = T ))
+                                         } else {
+                                           print(FeaturePlot( sce.combined, pt.size=1, label=F, reduction=input$umapMDlog, 
+                                                              features= input$umapMDcol , cols=c("lightgrey", "darkblue") ))}
+                                         
+                                         grDevices::dev.off()
+                                       })
+  }
+ 
+  ### scatter plots of continuous meta-features
+  {
+    output$mdScatterX <- renderUI({
+      
+      selectInput(
+        "mdScatterX","X axis:",choices=colnames( sce.combined@meta.data)[c(2,3,7,9,10)],
+        selected=colnames( sce.combined@meta.data)[2]
+      )
+    })
+    
+    output$mdScatterY <- renderUI({
+      
+      selectInput(
+        "mdScatterY","Y axis:",choices=colnames( sce.combined@meta.data)[c(2,3,7,9,10)],
+        selected=colnames( sce.combined@meta.data)[3]
+      )
+    })
+    
+    output$scatterLog <- renderUI({
+      temp_choices <- list("Yes"="Yes","No"="No")
+      
+      
+      radioButtons("scatterLog",inline=F,label="Group by original identity?",
+                   choices= temp_choices, selected="No")
+      
+    })
+    
+    output$mdScatter <- renderPlot({
+      req(input$scatterLog)
+      if(input$scatterLog=="No"){
+        pp1 <- (FeatureScatter( sce.combined, feature1=input$mdScatterX,feature2=input$mdScatterY, group.by=NULL))
+      }
+      if(input$scatterLog=="Yes"){
+        pp1 <- (FeatureScatter( sce.combined, feature1=input$mdScatterX,feature2=input$mdScatterY, group.by="orig.ident"))
+      }
+      pp2 <- ggplot( data= sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterX]), ] ,  
+                     aes(y=  sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterX]),input$mdScatterX], x=(1:nrow( sce.combined@meta.data))) ) + 
+        geom_point() + theme_bw() + xlab("index")+ ylab( input$mdScatterX )
+      pp3 <- ggplot( data=  sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterY]), ] ,  
+                     aes(y=  sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterY]),input$mdScatterY], 
+                         x=(1:nrow( sce.combined@meta.data))) ) + 
+        geom_point() + theme_bw() + xlab("index")+ ylab( input$mdScatterY)
+      print( cowplot::plot_grid( pp2, pp3, pp1 , nrow = 1))
+    })
+    
+    output$mdScatterSave <- downloadHandler( filename=paste0("mdScatter.pdf"),
+                                             content=function(file){
+                                               
+                                               req(input$scatterLog)
+                                               if(input$scatterLog=="No"){
+                                                 pp1 <- (FeatureScatter( sce.combined, feature1=input$mdScatterX,feature2=input$mdScatterY, group.by=NULL))
+                                               }
+                                               if(input$scatterLog=="Yes"){
+                                                 pp1 <- (FeatureScatter( sce.combined, feature1=input$mdScatterX,feature2=input$mdScatterY, group.by="orig.ident"))
+                                               }
+                                               pp2 <- ggplot( data= sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterX]), ] ,  
+                                                              aes(y=  sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterX]),input$mdScatterX], x=(1:nrow( sce.combined@meta.data))) ) + 
+                                                 geom_point() + theme_bw() + xlab("index")+ ylab( input$mdScatterX )
+                                               pp3 <- ggplot( data=  sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterY]), ] ,  
+                                                              aes(y=  sce.combined@meta.data[order( sce.combined@meta.data[,input$mdScatterY]),input$mdScatterY], 
+                                                                  x=(1:nrow( sce.combined@meta.data))) ) + 
+                                                 geom_point() + theme_bw() + xlab("index")+ ylab( input$mdScatterY)
+                                               
+                                               grDevices::cairo_pdf(file,height=6,width=12,fallback_resolution=1200)
+                                               print( cowplot::plot_grid( pp2, pp3, pp1 , nrow = 1))
+                                               grDevices::dev.off()
+                                             }  )
+  }
+
+  ### violin plots of genes of interest
+  {
+    output$AllorOne1 <- renderUI({
+      selectInput("AllorOne1",label="Markers of all clusters or one?",width="100%",choices=list("All"="all2","One"="one2"),
+                  selected="all2")
+    })
+    
+    output$WhichCluster1 <- renderUI({
+      req(input$AllorOne1)
+      if(input$AllorOne1=="one2"){
+        selectInput("WhichCluster1",label="Which Cluster?", width="100%",choices=levels(  sce.combined$seurat_clusters),
+                    selected="0", multiple = T)
+      }else{return(NULL)}
+    })
+    
+    output$ListType <- renderUI({
+      temp_choices <- list("Clusters"="clusterlist", "Mouse genotype"="gtypelist")
+      
+      radioButtons("ListType",inline=F,label="What kind of groups do you want to use?",
+                   choices=temp_choices,selected="clusterlist")
+      
+    })
+    
+    output$showcells <- renderUI({
+      temp_choices <- list("Yes"="Yes","No"="No")
+      
+      radioButtons("showcells",inline=F,label="show individual cells",
+                   choices= temp_choices, selected="No")
+    })
+    
+    output$vplot <- renderPlot({
+      req(input$ListType)
+      translate <- unlist( strsplit( input$GeneList , split = ",") )
+      
+      ## all or selected clusters
+      if ( input$AllorOne1=="all2") datTOplot <-  sce.combined else {
+        datTOplot <- subset(  sce.combined , ident= input$WhichCluster1  ) 
+      } 
+      ## show all cells or not
+      if ( input$showcells=="No") pointsize	<- 0 else pointsize	<- 0.1
+        
+      ## type of groupping
+      if(input$ListType=="clusterlist"){
+        print(VlnPlot(object = datTOplot , assay =  "RNA", features = translate, pt.size=pointsize, group.by="seurat_clusters") )
+      }
+            if(input$ListType=="origidentlist"){
+        print(VlnPlot(object = datTOplot, assay =  "RNA", features = translate, pt.size=pointsize,group.by="orig.ident"))
+      }
+      if(input$ListType=="gtypelist"){
+        print(VlnPlot(object = datTOplot, assay =  "RNA", features = translate, pt.size=pointsize,group.by="gtype"))
+      }
+    })
+    
+    output$vSave <- downloadHandler(filename=paste0("vplot.pdf"),
+                                    content=function(file){
+                                      require(input$GeneList)
+                                      grDevices::cairo_pdf(file,height=5,width=10,fallback_resolution=1200)
+                                      req(input$ListType)
+                                      
+                                      translate <-unlist( strsplit( input$GeneList , split = ",") )
+                                      
+                                      if ( input$AllorOne1=="all2") datTOplot <-  sce.combined else {
+                                        datTOplot <- subset(  sce.combined , ident= input$WhichCluster1 ) 
+                                      } 
+                                      
+                                      ## show all cells or not
+                                      if ( input$showcells=="No") pointsize	<- 0 else pointsize	<- 0.1
+                                      
+                                      ## type of groupping
+                                      if(input$ListType=="clusterlist"){
+                                        print(VlnPlot(object = datTOplot , assay =  "RNA", features = translate, pt.size=pointsize, group.by="seurat_clusters") )
+                                      }
+                                      if(input$ListType=="origidentlist"){
+                                        print(VlnPlot(object = datTOplot, assay =  "RNA", features = translate, pt.size=pointsize,group.by="orig.ident"))
+                                      }
+                                      if(input$ListType=="gtypelist"){
+                                        print(VlnPlot(object = datTOplot, assay =  "RNA", features = translate, pt.size=pointsize,group.by="gtype"))
+                                      }
+                                      grDevices::dev.off()
+                                    } )
+  }
+  
+  ###  expression of genes of interest in individual cells
+  {
+    output$AllorOne2 <- renderUI({
+      selectInput("AllorOne2",label="Display all clusters or one?",width="100%",choices=list("All"="all3","One"="one3"),
+                  selected="all3")
+    })
+    
+    output$WhichCluster2 <- renderUI({
+      req(input$AllorOne2)
+      if(input$AllorOne2=="one3"){
+        selectInput("WhichCluster2",label="Which Cluster?", width="100%",choices=levels(  sce.combined$seurat_clusters ),
+                    selected="0", multiple = T)
+      }else{return(NULL)}
+    })
+    
+    output$goiplot1 <- renderPlot({
+      plot3<- DimPlot(  sce.combined, group.by="seurat_clusters" )
+      plot3$data$Label <-  sce.combined$cell_type
+      print(LabelClusters(plot3, id="Label"))
+    })
+    
+    output$goiplot2 <- renderPlot({
+      
+      DefaultAssay(sce.combined) <- "RNA"
+      
+      if ( input$AllorOne2 =="all3") { 
+        datTOplot <-  sce.combined 
+        ppsize=1} else {
+        datTOplot <- subset(  sce.combined , ident= input$WhichCluster2 )
+        ppsize=3
+      } 
+      
+      print( scater::plotUMAP( as.SingleCellExperiment( datTOplot), colour_by= input$GeneName, point_size = ppsize   ) )
+    })
+    
+    output$geneSave <- downloadHandler(filename=paste0(input$GeneName,".pdf"),
+                                       content=function(file){
+                                         require(input$GeneName)
+                                         
+                                         DefaultAssay(sce.combined) <- "RNA"
+                                         
+                                         # all or selected clusters
+                                         if ( input$AllorOne2 =="all3") {
+                                           datTOplot <-  sce.combined 
+                                           ppsize=1 } else {
+                                             ppsize=4
+                                           datTOplot <- subset(  sce.combined , ident= input$WhichCluster2 ) 
+                                         } 
+                                         
+                                         grDevices::cairo_pdf(file,height=6,width=12,fallback_resolution=1200)
+                                         
+                                         plot3<- DimPlot(  sce.combined, group.by="seurat_clusters")
+                                         plot3$data$Label <-  sce.combined$seurat_clusters
+                                         pp1 <- ( LabelClusters(plot3, id="Label"))
+                                         pp2 <- ( scater::plotUMAP( as.SingleCellExperiment( datTOplot), 
+                                                                    colour_by= input$GeneName, point_size = ppsize   ) )
+                                         print( cowplot::plot_grid( pp1,pp2) )
+                                         grDevices::dev.off()
+                                       }  )
+  }
+  
+  ### plot and table with cluster markers
+  {
+    top10 <-  sce_subsMarks_noDub %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC)
+     sce.combined_subs <- subset( sce.combined ,  DoubletScore< 1 , downsample = 200  ) 
+     sce.combined_subs <- ScaleData( sce.combined_subs, features = rownames( sce.combined_subs) )
+    
+    output$clustPlot <- renderPlot({ 
+      print( DoHeatmap(  sce.combined_subs, features = top10$gene) + NoLegend() ) })
+    
+    output$hmapSave <- downloadHandler( filename=paste0("clusterMarks_heatmap.pdf"),
+                                       content=function(file){
+                                       grDevices::cairo_pdf(file,height=18,width=15,fallback_resolution=1200)
+                                         print( DoHeatmap(  sce.combined_subs, features = top10$gene) + NoLegend() )
+                                         grDevices::dev.off()
+                                       }  )
+    # render table
+    output$AllorOne <- renderUI({
+      selectInput("AllorOne",label="Markers of all clusters or one?",width="100%",choices=list("All"="all1","One"="one1"),
+                  selected="one1")
+    })
+    
+
+    output$WhichCluster <- renderUI({
+      req(input$AllorOne)
+      if(input$AllorOne=="one1"){
+        selectInput("WhichCluster",label="Which Cluster?", width="100%",choices=levels(  sce_subsMarks_noDub$cluster),
+                    selected="0")
+      }else{return(NULL)}
+    })
+    
+    output$mytable <- DT::renderDataTable({
+      req(input$AllorOne)
+      if(input$AllorOne=="all1"){
+        as.data.frame( sce_subsMarks_noDub)
+        
+      } else if(input$AllorOne=="one1"){
+        ClusterMarkersPos1<-subset( sce_subsMarks_noDub,cluster==input$WhichCluster)
+        
+        as.data.frame( ClusterMarkersPos1)
+        
+      }
+    }   ,extensions= 'Buttons', options = list( scrollY = 500 , dom = 'Bfrtip',
+                                                buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),paging=F))
+    
+  }
+
+  ### DE table
+  {
+
+    output$AllorOneDE <- renderUI({
+      selectInput("AllorOneDE",label="DE in all clusters or one?",width="100%",choices=list("All"="all2","One"="one2"),
+                  selected="all2")
+    })
+    
+    output$WhichCtype <- renderUI({
+      req(input$AllorOneDE)
+      if(input$AllorOneDE=="one2"){
+        selectInput("WhichCtype",label="Which Cluster?", width="100%",choices=levels(  sce_subsMarks_noDub$cluster),
+                    selected="0")
+      }else{return(NULL)}
+     
+    })
+    
+
+    output$DEtable <- DT::renderDataTable({
+      
+      names(kidney_kif3a_DE_noDub) <- levels(  sce.combined$seurat_clusters )
+
+      if(input$AllorOneDE=="all2"){
+        as.data.frame( allTab )
+        
+      } else if(input$AllorOneDE=="one2"){
+        as.data.frame( kidney_kif3a_DE_noDub[[ input$WhichCtype  ]] )
+      }
+    } ,  extensions= 'Buttons', options = list( scrollY = 500 , dom = 'Bfrtip',
+                                                buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),paging=F))
+    
+
+  }
+  
+
+}
+
+
+shinyApp(ui = ui, server = server)
+
+
+
