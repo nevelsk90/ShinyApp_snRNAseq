@@ -18,7 +18,7 @@ set.seed(42)
     
     
     fixedRow(
-      titlePanel(paste("analysis of snRNA-seq data from wild-type and Kif3a mutant kidney"))
+      titlePanel(paste("visualisation of snRNA-seq data set"))
     ),
     hr(),
     hr(),
@@ -229,14 +229,14 @@ server <- function(input, output) {
   
   ## load the DE results
   sce_DEresults <- reactive({
-    req( input$uploadDE )
+    req( input$uploadDEresults )
     readRDS( file=input$uploadDEresults$datapath ) 
   })
 
   
   ## load the cluster markers results
   sce_ClustMarks <- reactive({
-    req( input$ClustMarks )
+    req( input$uploadClustMarks )
     readRDS( file=input$uploadClustMarks$datapath ) 
   })
   
@@ -471,23 +471,8 @@ server <- function(input, output) {
 
   ###  expression of genes of interest in individual cells
   {
-    output$AllorOne2 <- renderUI({
-      selectInput("AllorOne2",label="Display all clusters or one?",width="100%",choices=list("All"="all3","One"="one3"),
-                  selected="all3")
-    })
 
-    output$WhichCluster2 <- renderUI({
-      req(input$AllorOne2)
-      
-      # update the dataset
-      sce.combined <- sce.combined()
-      
-      if(input$AllorOne2=="one3"){
-        selectInput("WhichCluster2",label="Which Cluster?", width="100%",choices=levels(  sce.combined$seurat_clusters ),
-                    selected="0", multiple = T)
-      }else{return(NULL)}
-    })
-
+    # UMAP with cell-type labeles stored in cell_type metadata column
     output$goiplot1 <- renderPlot({
       
       # update the dataset
@@ -502,6 +487,24 @@ server <- function(input, output) {
       
     })
 
+    # choose if all cells or one cluster should be vizualised
+    output$AllorOne2 <- renderUI({
+      selectInput("AllorOne2",label="Display all clusters or one?",width="100%",choices=list("All"="all3","One"="one3"),
+                  selected="all3")
+    })
+    # if one cluster - which one?
+    output$WhichCluster2 <- renderUI({
+      req(input$AllorOne2)
+      
+      # update the dataset
+      sce.combined <- sce.combined()
+      
+      if(input$AllorOne2=="one3"){
+        selectInput("WhichCluster2",label="Which Cluster?", width="100%",choices=levels(  sce.combined$seurat_clusters ),
+                    selected="0", multiple = T)
+      }else{return(NULL)}
+    })
+    # UMAP showing expression of individual genes
     output$goiplot2 <- renderPlot({
 
       # update the dataset
@@ -519,6 +522,7 @@ server <- function(input, output) {
       print( scater::plotUMAP( as.SingleCellExperiment( datTOplot), colour_by= input$GeneName, point_size = ppsize   ) )
     })
 
+    # save both UMAPs
     output$geneSave <- downloadHandler(filename=paste0(input$GeneName,".pdf"),
                                        content=function(file){
                                          require(input$GeneName)
