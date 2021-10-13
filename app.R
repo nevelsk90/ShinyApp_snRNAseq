@@ -186,19 +186,14 @@ set.seed(42)
       column(12,align="right",downloadButton("hmapSave",paste("Save image")))
     ) ,
     
-    h1(),
-    
-  
-    fixedRow(
-      column(4,uiOutput("AllorOne")),
-      column(2,uiOutput("WhichCluster"))
-    ),
-    
-    basicPage(
+    hr(),
+   basicPage(
       DT::dataTableOutput("mytable")
     ) ,
+   h1(),
     hr(),
     hr(),
+
     
    
     
@@ -208,11 +203,6 @@ set.seed(42)
       # p("The last column shows what groups were tested against each other")
     ) ,
     hr(),
-    
-    fixedRow(
-      column(4,uiOutput("AllorOneDE")),
-      column(2,uiOutput("WhichCtype"))
-    ),
     
     basicPage(
       DT::dataTableOutput("DEtable")
@@ -562,6 +552,7 @@ server <- function(input, output) {
 
   ### plot and table with cluster markers
   {
+    # render heatmap of cluster markers
     output$clustPlot <- renderPlot({
       # update the data
       sce_ClustMarks <- sce_ClustMarks()
@@ -577,7 +568,7 @@ server <- function(input, output) {
       # make a plot
       print( DoHeatmap(  sce.combined_subs, features = top10$gene) + NoLegend() ) 
       })
-
+    # save button for the heatmap of cluster markers
     output$hmapSave <- downloadHandler( filename=paste0("clusterMarks_heatmap.pdf"),
                                        content=function(file){
                                          
@@ -595,69 +586,21 @@ server <- function(input, output) {
                                          print( DoHeatmap(  sce.combined_subs, features = top10$gene) + NoLegend() )
                                          grDevices::dev.off()
                                        }  )
-    # render table
-    output$AllorOne <- renderUI({
-      selectInput("AllorOne",label="Markers of all clusters or one?",width="100%",choices=list("All"="all1","One"="one1"),
-                  selected="one1")
-    })
-
-
-    output$WhichCluster <- renderUI({
-      req(input$AllorOne)
-
-      # update the data
-      sce_ClustMarks <- sce_ClustMarks()
-
-      if(input$AllorOne=="one1"){
-        selectInput("WhichCluster",label="Which Cluster?", width="100%",choices=levels(  sce_ClustMarks$cluster),
-                    selected="0")
-      }else{return(NULL)}
-    })
-
+    # render table of cluster markers
     output$mytable <- DT::renderDataTable({
-      req(input$AllorOne)
 
       # update the data
       sce_ClustMarks <- sce_ClustMarks()
-
-      if(input$AllorOne=="all1"){
-        as.data.frame( sce_ClustMarks)
-
-      } else if(input$AllorOne=="one1"){
-        ClusterMarkersPos1<-subset( sce_ClustMarks,cluster==input$WhichCluster)
-
-        as.data.frame( ClusterMarkersPos1)
-
-      }
-    } , extensions= 'Buttons', options = list( scrollY = 500 , dom = 'Bfrtip',
-                                                buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),paging=F))
+      # visualise
+      datatable( sce_ClustMarks , rownames = F )   } , 
+        extensions= 'Buttons', options = list( scrollY = 500 , dom = 'Bfrtip',
+        buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),paging=F))
 
   }
 
   ### DE table
   {
-
-    # if we should plot 
-    output$AllorOneDE <- renderUI({
-      selectInput("AllorOneDE",label="DE in all clusters or one?", width="100%",choices=list("All"="all2","One"="one2"),
-                  selected="all2")
-    })
-
-    output$WhichCtype <- renderUI({
-      
-      req(input$AllorOneDE)
-
-      # update DE data
-      sce_DEresults <- sce_DEresults()
-
-      if(input$AllorOneDE=="one2"){
-        selectInput("WhichCtype",label="Which Cluster?", width="100%",choices=levels(  sce_DEresults$cluster),
-                    selected="0")
-      }else{return(NULL)}
-
-    })
-
-
+    # render table of DE for all clusters
     output$DEtable <- DT::renderDataTable({
 
       # update the data
@@ -672,13 +615,8 @@ server <- function(input, output) {
 
       names(sce_DEresults) <- levels(  sce.combined$seurat_clusters )
 
-      if(input$AllorOneDE=="all2"){
-        as.data.frame( allTab )
-
-      } else if(input$AllorOneDE=="one2"){
-        as.data.frame( sce_DEresults[[ input$WhichCtype  ]] )
-      }
-    } ,  extensions= 'Buttons', options = list( scrollY = 500 , dom = 'Bfrtip',
+      
+      datatable( allTab, rownames = F )  } ,  extensions= 'Buttons', options = list( scrollY = 500 , dom = 'Bfrtip',
                                                 buttons = c('copy', 'csv', 'excel', 'pdf', 'print'),paging=F))
 
 
