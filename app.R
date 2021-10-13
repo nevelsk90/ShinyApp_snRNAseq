@@ -8,9 +8,9 @@ library(shinyWidgets)
 library(ggplot2)
 library(scater)
 
-
-### set a seed
+### set a size limit for uploading files
 options(shiny.maxRequestSize = 3000*1024^2)
+### set a seed
 set.seed(42)
 
 ### UI
@@ -27,10 +27,17 @@ set.seed(42)
     ### load the data
     
     fixedRow(
-      p("upload the data"),
-      column(8,fileInput("uploadSeurat", NULL, width = "70%", buttonLabel = "Upload the .rda file with processed Seurat object", multiple = F)),
-      column(8,fileInput("uploadDEresults", NULL, width = "70%", buttonLabel = "Upload the .rda file with DE analysis", multiple = F)),
-      column(8,fileInput("uploadClustMarks", NULL, width = "70%", buttonLabel = "Upload the .rda file with cluster markers", multiple = F))
+      titlePanel("upload the data"),
+      HTML(paste("All data should be in .rda format.", 
+        "1) Seurat object should have PCA and UMAP slots, data should be clustered." ,
+        "2) DE results should contain a list of tables - one per clusters, generated with Seurat::FindMarkers() function." , 
+        "3) Cluster markers file should contain one table generated with Seurat::FindAllMarkers", sep="<br/>")) ),
+    h1(),
+    
+    fixedRow(
+      column(8,fileInput("uploadSeurat", NULL, width = "70%", buttonLabel = "Upload Seurat object", multiple = F)),
+      column(8,fileInput("uploadDEresults", NULL, width = "70%", buttonLabel = "Upload results of DE analysis", multiple = F)),
+      column(8,fileInput("uploadClustMarks", NULL, width = "70%", buttonLabel = "Upload cluster markers", multiple = F))
       ),
     fixedRow( column(4,actionButton( inputId="do","Click to plot")),
               add_busy_spinner(spin = "fading-circle") #progress indicator
