@@ -10,6 +10,7 @@ library(scater)
 
 
 ### set a seed
+options(shiny.maxRequestSize = 3000*1024^2)
 set.seed(42)
 
 ### UI
